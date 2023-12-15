@@ -8,14 +8,16 @@ int rows = 1;
 int cols = 1;
 vector<vector<int>> board;
 
-void draw_board(vector<vector<int>>& board); // draw board on screen
-bool put_piece(int colNum, vector<vector<int>>& board, int player_num); // drop a piece into column
-bool check_board_in_pos(int row, int col, vector<vector<int>>& board, int player_num); // check for winning condition for given position in board
-bool check_given_boundary(int col, vector<int>& line, int player_num);
-vector<int> transpose_column(vector<vector<int>>& board, int col); // take a column of a board as an array
+void draw_board(); // draw board on screen
+bool put_piece(int colNum, int player_num); // drop a piece into column
+bool check_board_in_pos(int row, int col); // check for winning condition for given position in board
+bool check_given_boundary(int col, vector<int>& line);
+vector<int> transpose_column(int col); // take a column of a board as an array
+bool check_topdown_diagonal(int row, int col); // take a diagonal of a board as an array
+bool check_downtop_diagonal(int row, int col); // take a diagonal of a board as an array
 
 int main(int argc, char* argv[])
-{
+{    
     constexpr int first_player_num = 1;
     constexpr int second_player_num = 2;
     int current_player_num = 2;
@@ -24,38 +26,30 @@ int main(int argc, char* argv[])
     cout << "Enter size of game board (format: rows cols) -> ";
     cin >> cols >> rows;
 
-    for (int i = 0; i < rows; i++)
-    {
-        board.emplace_back();
-        for (int j = 0; j < cols; j++)
-        {
-            board[i].push_back(0);
-        }
-    }
-
-    draw_board(board);
+    board = vector<vector<int>>(rows, vector<int>(cols));
 
     while (is_game_on)
     {
-        system("cls");
         current_player_num = current_player_num == first_player_num ? second_player_num : first_player_num;
-        draw_board(board);
+        draw_board();
 
         cout << "Player number " << current_player_num << ". It is your turn!" << endl;
         cout << "Enter the column number where to put a piece -> ";
         int colNum;
         cin >> colNum;
 
-        is_game_on = !put_piece(colNum, board, current_player_num);
+        is_game_on = !put_piece(colNum, current_player_num);
     }
 
+    draw_board();
+    
     cout << "Congratulations, Player number " << current_player_num << "!" << endl;
     cout << "Y O U  W I N";
     
     return 0;
 }
 
-void draw_board(vector<vector<int>>& board)
+void draw_board()
 {
     cout << "  ";
     for (int i = 0; i < cols; i++)
@@ -64,7 +58,8 @@ void draw_board(vector<vector<int>>& board)
     }
     cout << endl;
     
-    for (int i = rows - 1; i >= 0; i--)
+    // for (int i = rows - 1; i >= 0; i--)
+    for (int i = 0; i < rows; i++)
     {
         cout << "| ";
         for (int j = 0; j < cols; j++)
@@ -75,7 +70,7 @@ void draw_board(vector<vector<int>>& board)
     }
 }
 
-bool put_piece(int colNum, vector<vector<int>>& board, int player_num)
+bool put_piece(int colNum, int player_num)
 {
     colNum--;
     int rowNum = 0;
@@ -85,13 +80,11 @@ bool put_piece(int colNum, vector<vector<int>>& board, int player_num)
         rowNum++;
 
     board[rowNum][colNum] = player_num;
-
-    draw_board(board);
     
-    return check_board_in_pos(rowNum, colNum, board, player_num);
+    return check_board_in_pos(rowNum, colNum);
 }
 
-bool check_board_in_pos(int row, int col, vector<vector<int>>& board, int player_num)
+bool check_board_in_pos(int row, int col)
 {
     // idea is to use window of 4 to check sum of elements around given position at board[row][col]
     // Every player has own unique numbers.
@@ -100,51 +93,104 @@ bool check_board_in_pos(int row, int col, vector<vector<int>>& board, int player
 
     // Horizontal check for given row
     vector<int> horizontal_line = board[row];
-    bool answer = check_given_boundary(col, horizontal_line, player_num);
-    if (answer)
-        return answer;
-
+    bool answer = check_given_boundary(col, horizontal_line);
+    if (answer) return answer;
 
     // vertical check for given column
     // Taking the given column of the board to the array
-    vector<int> transposed_column = transpose_column(board, col);
+    vector<int> transposed_column = transpose_column(col);
 
-    answer = check_given_boundary(col, transposed_column, player_num);
-    if (answer)
-        return answer;
+    answer = check_given_boundary(col, transposed_column);
+    if (answer) return answer;
+    
     // Diagonal check
     // Idea is to take a diagonal as an array and do the same check as for horizontal check
+
+    // Down to top diagonal check
+    answer = check_topdown_diagonal(row, col);
+    if (answer) return answer;
+
+    // Top to down diagonal check
+    answer = check_downtop_diagonal(row, col);
+    if (answer) return answer;
     
     return answer;
 }
 
-bool check_given_boundary(int col, vector<int>& line, int player_num)
+bool check_given_boundary(int col, vector<int>& line)
 {
-    const int min_boundary = max(col - 3, 0);
-    const int max_boundary = min(col + 3, cols - 2);
-    int result = 0;
-    result = accumulate(line.begin() + min_boundary, line.begin() + min_boundary + 4, result);
-
-    for (int j = min_boundary + 1; j < max_boundary - 3; j++)
+    int counter = 1;
+    
+    for (int j = 0; j < line.size(); j++)
     {
-        if (result == player_num * 4)
-            return true;
-        
-        result -= line[j - 1];
-        result += line[j + 3];
+        if (line[j] == 0) continue;
 
+        if (line[j] == line[j + 1])
+            counter++;
+        else
+            counter = 1;
+
+        if (counter == 4)
+            return  true;
     }
     return false;
 }
 
-vector<int> transpose_column(vector<vector<int>>& board, int col)
+vector<int> transpose_column(int col)
 {
     vector<int> transposed_column;
 
+    transposed_column.reserve(board.size());
     for (auto& i : board)
     {
         transposed_column.push_back(i[col]);
     }
 
     return transposed_column;
+}
+
+bool check_topdown_diagonal(int row, int col)
+{
+    const int row_min = max(row - 3, 0);
+    const int col_min = max(col - 3, 0);
+    const int row_max = min(row + 3, rows - 1);
+    const int col_max = min(col + 3, cols - 1);
+    
+    const int step_back = min(row, col) - min(row_min, col_min);
+    const int step_forward = max(row_max, col_max) - max(row, col);
+    const int steps = step_back + step_forward + 1;
+    
+    if (step_back + step_forward < 4) return false;
+
+    auto transposed_diagonal = vector<int>(steps);
+
+    for(int i = -step_back, j = 0; i < step_forward && j < steps; i++, j++)
+    {
+        transposed_diagonal[j] = board[row + i][col + i];
+    }
+
+    return check_given_boundary(col, transposed_diagonal);
+}
+
+bool check_downtop_diagonal(int row, int col)
+{
+    const int row_min = max(row - 3, 0);
+    const int col_min = max(col - 3, 0);
+    const int row_max = min(row + 3, rows - 1);
+    const int col_max = min(col + 3, cols - 1);
+    
+    const int step_back = min(row, col) - max(row_min, col_min);
+    const int step_forward = min(row_max, col_max) - max(row, col);
+    const int steps = step_back + step_forward + 1;
+    
+    if (step_back + step_forward < 4) return false;
+
+    auto transposed_diagonal = vector<int>(steps);
+
+    for(int i = -step_back, j = 0; i < step_forward && j < steps; i++, j++)
+    {
+        transposed_diagonal[j] = board[row + i][col + i];
+    }
+
+    return check_given_boundary(col, transposed_diagonal);
 }
